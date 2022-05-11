@@ -19,17 +19,16 @@ class MasterNode extends Node{
     MasterNode() throws Exception{
         super(0);
         this.machineKey = 8000;
-        //ss = new ServerSocket(this.machineKey);
         this.itemMap = new HashMap<Integer, Item>();
         this.neighborKey = new LinkedList<Integer>();
-        this.neighborKey.add(this.machineKey);//ele próprio é o primeiro da lista
+        this.neighborKey.add(this.machineKey);//ele proprio e o primeiro da lista
         System.out.println("criado o master");
     }
     void MasterProducer() throws Exception{
         System.out.println("Start Producer");
         String code = "";
         while(code != "exit"){
-            System.out.println("Producer: Before ServerSocket");
+            //System.out.println("Producer: Before ServerSocket");
             ss = new ServerSocket(this.machineKey);
             Socket s = ss.accept();
             DataInputStream din=new DataInputStream(s.getInputStream());
@@ -37,8 +36,8 @@ class MasterNode extends Node{
             din.close(); 
             s.close(); 
             ss.close();
-            System.out.println("Producer: After Sockets Close");
-            System.out.println("Producer: before mutex");
+            //System.out.println("Producer: After Sockets Close");
+            //System.out.println("Producer: before mutex");
             mutex.acquire();
             command.offer(code);
             mutex.release();  //releasing After Production ;
@@ -47,7 +46,7 @@ class MasterNode extends Node{
             //String[] cmd = code.split("##");
             if(code.startsWith("exit")){
                 code = "exit";
-                System.out.println("Producer: entrou no if do exit");
+                //System.out.println("Producer: entrou no if do exit");
             }
             
         }
@@ -59,27 +58,27 @@ class MasterNode extends Node{
         Thread t = new Thread(new Runnable() {
             @Override
             public void run(){
-                System.out.println("starting new thread");//VAI DAR MERDA
+                //System.out.println("starting new thread");//VAI DAR MERDA
                 String code = "";
                 while(code != "exit"){
-                    System.out.println("Consumer: after while code: "+code);
+                    //System.out.println("Consumer: after while code: "+code);
                     Boolean noCommand = true;
                     while(noCommand){
                         try {
-                            System.out.println("Consumer: before mutex");
+                            //System.out.println("Consumer: before mutex");
                             mutex1.acquire();     /// Again Acquiring So no production while consuming
                             mutex.acquire();
                             if(command.size() < 1){//lista vazia
-                                System.out.println("lista vazia");
+                                //System.out.println("lista vazia");
                                 mutex.release();
-                                System.out.println("Consumer: after mutex");
+                                //System.out.println("Consumer: after mutex");
                                 Thread.sleep(500);
                             }
-                            else{//lista não vazia
-                                System.out.println("peguei um comando");
+                            else{//lista nao vazia
+                                //System.out.println("peguei um comando");
                                 code = command.poll();
                                 mutex.release();
-                                System.out.println("Consumer: after mutex");
+                                //System.out.println("Consumer: after mutex");
                                 noCommand = false;
                             }
                             
@@ -87,9 +86,9 @@ class MasterNode extends Node{
                         }
                         
                     }
-                    String[] cmd = code.split("##");/* ************* ATENÇÃO AQUI, PRECISA ESTAR BEM DE ACORDO COM O CMD*/
+                    System.out.println(code);
+                    String[] cmd = code.split("##");/* ************* ATENCAO AQUI, PRECISA ESTAR BEM DE ACORDO COM O CMD*/
                     cmd[0] = cmd[0].toUpperCase();
-                    System.out.println("Consumer: command " + cmd[0]);
                     try {
                         switch (cmd[0]) {
                             case "ADD": //ADD##INFO
@@ -97,11 +96,16 @@ class MasterNode extends Node{
                                 addItem(cmd[1]);
                                 break;
                             
-                            case "RET": //RET##key do item no hashmap ## machineKey para onde enviar
+                            case "RET": //retrieve item and call the next -> RET##key do item no hashmap ## machineKey para onde enviar ##key da pesquisa
                                 System.out.println("retrieve");
-                                retrieveInfo(Integer.parseInt(cmd[1]),Integer.parseInt(cmd[2]));
+                                retrieveInfo(Integer.parseInt(cmd[1]),Integer.parseInt(cmd[2]),Integer.parseInt(cmd[3]));
                                 break;
-                            
+
+                            case "RTI": //init retrieve -> RTI##user machine key##key da pesquisa
+                                System.out.println("retrieve init");
+                                retrieveInit(Integer.parseInt(cmd[1]),Integer.parseInt(cmd[2]));
+                                break;
+
                             case "SER": //SER##key do item sendo procurado ## para onde responder ## a info procurada
                                 search(Integer.parseInt(cmd[1]),Integer.parseInt(cmd[2]), cmd[3]);
                                 break;
@@ -109,10 +113,11 @@ class MasterNode extends Node{
                             case "ADN": //add node -> ADN##NODEKEY
                                 addNode(Integer.parseInt(cmd[1]));
                                 break;
-                            case "UPL": //update last -> UPL##LASTKEY##LASTMACHINEKEY
+                            case "UPL": //atualiza a referencia do ultimo no master -> UPL##LASTKEY##LASTMACHINEKEY
+                                System.out.println("upl");
                                 updateLast(Integer.parseInt(cmd[1]),Integer.parseInt(cmd[2]));
                                 break;
-                            case "LAD": //ATUALIZA UM ITEM COLOCANDO OS DADOS DO PRÓXIMO ITEM QUE ELE APONTA -> LAD## KEY DO ITEM DESTE NODE A MODIFICAR ## KEY DO NEXT ITEM ## MACHINE KEY DO NEXT ITEM
+                            case "LAD": //ATUALIZA UM ITEM COLOCANDO OS DADOS DO PROXIMO ITEM QUE ELE APONTA -> LAD## KEY DO ITEM DESTE NODE A MODIFICAR ## KEY DO NEXT ITEM ## MACHINE KEY DO NEXT ITEM
                                 addNext(Integer.parseInt(cmd[1]),Integer.parseInt(cmd[2]), Integer.parseInt(cmd[3]));
                                 break;
                             case "EXIT":
@@ -137,9 +142,10 @@ class MasterNode extends Node{
 
     void addItem(String info){
         System.out.println("master|inside add");
+        int key = RandomAux.getKey();
         if(countItens == 0){
             System.out.println("master|inserindo na lista vazia");
-            Item item = new Item(info, this.machineKey);
+            Item item = new Item(info, key, this.machineKey);
             itemMap.put(item.getKey(),item);
             this.firstKey = item.getKey();
             this.firstMachineKey = this.machineKey;
@@ -149,7 +155,7 @@ class MasterNode extends Node{
         else{
             if(this.neighborKey.size() < 1){//so tem esse node (master)
                 System.out.println("master|master sozinho");
-                Item item = new Item(info,this.machineKey);
+                Item item = new Item(info, key, this.machineKey);
                 this.itemMap.get(this.lastKey).nextKey = item.key;
                 this.itemMap.get(this.lastKey).nextmachineKey = item.machineKey;
                 itemMap.put(item.getKey(),item);
@@ -158,12 +164,12 @@ class MasterNode extends Node{
             }
             else{
                 int chosen = countItens%neighborKey.size();
-                if(chosen == 0){//SERÁ INSERIDO NO MASTER PELA RODADA NORMAL
+                if(chosen == 0){//SERA INSERIDO NO MASTER PELA RODADA NORMAL
                     System.out.println("master|master escolhido");
-                    Item item = new Item(info,this.machineKey);
+                    Item item = new Item(info, key, this.machineKey);
                     itemMap.put(item.getKey(),item);
-                    if(this.lastMachineKey == this.machineKey){//se o last estiver no master não mandar msg via rede //pouco provavel, mas pra garantir
-                        System.out.println("master|o ultimo item esta no master e mais um item está sendo inserido no master");
+                    if(this.lastMachineKey == this.machineKey){//se o last estiver no master nao mandar msg via rede //pouco provavel, mas pra garantir
+                        System.out.println("master|o ultimo item esta no master e mais um item esta sendo inserido no master");
                         this.itemMap.get(this.lastKey).setNextKey(item.getKey());
                         this.itemMap.get(this.lastKey).setNextmachineKey(item.getMachineKey());
                         
@@ -173,24 +179,21 @@ class MasterNode extends Node{
                     else{
                         try {
                             System.out.println("master|o ultimo item nao esta no master e mais um item esta sendo inserido");
-                            /*Socket s = new Socket("localhost",neighborKey.get(this.lastMachineKey));
-                            DataOutputStream dout=new DataOutputStream(s.getOutputStream());
-                            dout=new DataOutputStream(s.getOutputStream());
-                            dout.writeUTF("lad##"+this.lastKey+"##"+item.getKey()+"##"+this.machineKey);//last add pattern LAD##KAY DO ITEM MODIFICADO##KEY DO NEXT ITEM##MACHINE KEY DO NEXT ITEM 
-                            dout.flush();
-                            dout.close();
-                            s.close();*/
                             sendMsg("lad##"+this.lastKey+"##"+item.getKey()+"##"+this.machineKey, this.lastMachineKey);
+                            this.lastKey = item.getKey();//verificar se isso aqui nao da pau
+                            this.lastMachineKey = this.machineKey;
                         } catch (Exception e) {
                             //TODO: handle exception
                         }
                     }
 
                 }
-                else{//O ITEM SERÁ ADICIONADO EM OUTRO NODE
+                else{//O ITEM SERA ADICIONADO EM OUTRO NODE
                     try{
-                        System.out.println("master|o item será inserido em outro node");
-                        sendMsg("add##"+ info + "##" + this.lastKey + "##" + this.lastMachineKey, neighborKey.get(chosen));
+                        System.out.println("master|o item sera inserido em outro node");
+                        sendMsg("add##"+ key +"##"+ info + "##" + this.lastKey + "##" + this.lastMachineKey, neighborKey.get(chosen));
+                        this.lastKey = key;
+                        this.lastMachineKey = neighborKey.get(chosen);
                     }catch (Exception e) {
                         //TODO: handle exception
                     }
@@ -200,6 +203,14 @@ class MasterNode extends Node{
 
         this.countItens++;
         System.out.println("end of add");
+    }
+
+    void retrieveInit(int userKey,int retrieveKey) throws Exception{//fazer um fi para ver se o nextmachineitem eh a propria maquina
+        if(countItens<=0) return;
+        Item it = itemMap.get(this.firstKey);
+        sendMsg("RES##"+ it.getInfo() + "##" + retrieveKey, userKey);
+        if(it.getNextmachineKey() == 0) return;
+        sendMsg("RET##" + it.getNextKey() + "##" + userKey + "##" + retrieveKey, it.getNextmachineKey());
     }
 
     void addNode(int nodeMachineKey){

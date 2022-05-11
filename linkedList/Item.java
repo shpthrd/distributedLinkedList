@@ -8,10 +8,13 @@ class Item{
     Item(){
 
     }
-    Item(String info,int machineKey){
-        setKey(RandomAux.getKey());
+    Item(String info,int key,int machineKey){
+        //setKey(RandomAux.getKey());
+        setKey(key);
         setMachineKey(machineKey);
         setInfo(info);
+        setNextKey(0);
+        setNextmachineKey(0);
     }
 
 

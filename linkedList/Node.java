@@ -31,7 +31,7 @@ class Node{
     void Producer() throws Exception{
         String code = "";
         while(code != "exit"){//MUDAR PARA RECEBER VIA TCP E DEPOIS IMPLEMENTAR UMA QUEUE
-            System.out.println("Before ServerSocket");
+            //System.out.println("Before ServerSocket");
             this.ns = new ServerSocket(this.machineKey);
             Socket s = ns.accept();
             DataInputStream din=new DataInputStream(s.getInputStream());  
@@ -39,8 +39,8 @@ class Node{
             din.close();  
             s.close();  
             ns.close();
-            System.out.println("Producer: After Sockets Close");
-            System.out.println("Producer: before mutex");
+            //System.out.println("Producer: After Sockets Close");
+            //System.out.println("Producer: before mutex");
             mutex.acquire();
             command.offer(code);
             mutex.release();  //releasing After Production ;
@@ -49,7 +49,7 @@ class Node{
             //String[] cmd = code.split("##");
             if(code.startsWith("exit")){
                 code = "exit";
-                System.out.println("Producer: entrou no if do exit");
+                //System.out.println("Producer: entrou no if do exit");
             }
         }
         System.out.println("Producer: fim do while");
@@ -59,27 +59,27 @@ class Node{
         Thread t = new Thread(new Runnable() {
             @Override
             public void run(){
-                System.out.println("starting new thread");//VAI DAR MERDA
+                //System.out.println("starting new thread");//VAI DAR MERDA
                 String code = "";
                 while(code!="exit"){
                     
                     Boolean noCommand = true;
                     while(noCommand){
                         try {
-                            System.out.println("Consumer: before mutex");
+                            //System.out.println("Consumer: before mutex");
                             mutex1.acquire();     /// Again Acquiring So no production while consuming
                             mutex.acquire();
                             if(command.size() < 1){//lista vazia
-                                System.out.println("lista vazia");
+                                //System.out.println("lista vazia");
                                 mutex.release();
-                                System.out.println("Consumer: after mutex");
+                                //System.out.println("Consumer: after mutex");
                                 Thread.sleep(500);
                             }
                             else{//lista não vazia
-                                System.out.println("peguei um comando");
+                                //System.out.println("peguei um comando");
                                 code = command.poll();
                                 mutex.release();
-                                System.out.println("Consumer: after mutex");
+                                //System.out.println("Consumer: after mutex");
                                 noCommand = false;
                             }
                             
@@ -87,25 +87,25 @@ class Node{
                         }
                         
                     }
+                    System.out.println(code);
                     String[] cmd = code.split("##");/* ************* ATENÇÃO AQUI, PRECISA ESTAR BEM DE ACORDO COM O CMD*/
                     cmd[0] = cmd[0].toUpperCase();
-                    for(int i =0; i<cmd.length;i++){
-                        System.out.println(cmd[i]);
-                    }
+                    
                     try {
                         switch (cmd[0]){
-                            case "ADD": //ADICIONA UM ITEM NOVO NO NODE -> ADD##INFO##lastkey##lastmachinekey
+                            case "ADD": //ADICIONA UM ITEM NOVO NO NODE -> ADD##key##INFO##lastkey##lastmachinekey
                                 System.out.println("add");
-                                addItem(cmd[1],Integer.parseInt(cmd[2]),Integer.parseInt(cmd[3]));
+                                addItem(Integer.parseInt(cmd[1]),cmd[2],Integer.parseInt(cmd[3]),Integer.parseInt(cmd[4]));
                                 break;
-                            case "RET": //PERCORRE A LISTA LIGADA E DEVOLVE A INFO DE CADA UM -> RET##key do item no hashmap ## machineKey para onde enviar
+                            case "RET": //PERCORRE A LISTA LIGADA E DEVOLVE A INFO DE CADA UM -> RET##key do item no hashmap ## machineKey para onde enviar ## retrieve key
                                 System.out.println("retrieve");
-                                retrieveInfo(Integer.parseInt(cmd[1]),Integer.parseInt(cmd[2]));
+                                retrieveInfo(Integer.parseInt(cmd[1]),Integer.parseInt(cmd[2]),Integer.parseInt(cmd[3]));
                                 break;
                             case "SER": //PROCURA POR UMA INFO ESPECIFICA -> SER##key do item sendo procurado ## para onde responder ## a info procurada
                                 search(Integer.parseInt(cmd[1]),Integer.parseInt(cmd[2]), cmd[3]);
                                 break;
                             case "LAD": //ATUALIZA UM ITEM COLOCANDO OS DADOS DO PRÓXIMO ITEM QUE ELE APONTA -> LAD## KEY DO ITEM DESTE NODE A MODIFICAR ## KEY DO NEXT ITEM ## MACHINE KEY DO NEXT ITEM
+                                System.out.println("LAD");
                                 addNext(Integer.parseInt(cmd[1]),Integer.parseInt(cmd[2]), Integer.parseInt(cmd[3]));
                                 break;
                             case "EXIT":
@@ -126,17 +126,20 @@ class Node{
 
     }
 
-    void addItem(String info, int lastKey, int lastMachineKey) throws Exception{//################VERIFICAR
-        Item item = new Item(info,this.machineKey);
+    void addItem(int key, String info, int lastKey, int lastMachineKey) throws Exception{//################VERIFICAR
+        Item item = new Item(info, key, this.machineKey);
         itemMap.put(item.getKey(), item);
         //mandar msg para o last para atualizar e mandar msg para o master para atualizar a referencia do last
         sendMsg("lad##"+lastKey+"##"+item.getKey()+"##"+this.machineKey, lastMachineKey);
+        //sendMsg("upl##"+item.getKey()+"##"+this.machineKey, 8000);//update in the master the last key
         System.out.println("item adicionado");
 
     }
-    void retrieveInfo(int key,int userKey){
-        //logica para mandar uma info(string) para o node usuario e chamar o próximo item (na próxima máquina)
-        System.out.println("entrou no retrieveInfo");
+    void retrieveInfo(int key,int userKey,int retrieveKey) throws Exception{
+        Item it = itemMap.get(key);
+        sendMsg("RES##"+ it.getInfo() + "##" + retrieveKey, userKey);
+        if(it.getNextmachineKey() == 0) return;
+        sendMsg("RET##" + it.getNextKey() + "##" + userKey + "##" + retrieveKey, it.getNextmachineKey());
     }
 
     void search(int key, int userKey, String info){//PROCURA EM UM ITEM ESPECIFICO SE CONSTA A INFO E DEVOLVE PARA O NODE USUARIO
@@ -144,9 +147,11 @@ class Node{
     }
 
     void addNext(int key, int nextKey, int nextMachineKey){
+        System.out.println("key before LAD: "+itemMap.get(key).getNextKey());
         Item item = itemMap.get(key);
         item.setNextKey(nextKey);
         item.setNextmachineKey(nextMachineKey);
+        System.out.println("key after LAD: "+itemMap.get(key).getNextKey());
     }
 
     void sendMsg(String msg,int machineKey) throws Exception{
@@ -171,9 +176,9 @@ class Node{
                 scanning=false;
             } catch(Exception e) {
                 System.err.println(e);
-                System.out.println("Connect failed, waiting and trying again");
-                if(i>=10){
-                    scanning = true;
+                System.out.println("Falha na msg para: "+machineKey+" msg: "+msg);
+                if(i>=3){
+                    scanning = false;
                     System.out.println("terminating");
                 }
                 else{

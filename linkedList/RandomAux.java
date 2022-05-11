@@ -8,7 +8,7 @@ class RandomAux{
     }
 
     static int getPort(){
-        return random.nextInt(5000)+3000;
+        return random.nextInt(50000)+3000;
     }
     static int getKey(){
         return random.nextInt(100000);
