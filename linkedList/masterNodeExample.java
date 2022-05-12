@@ -1,6 +1,6 @@
 import java.util.Collection;
 import java.util.ArrayList;
-class Main{
+class masterNodeExample{
     public static void main(String args []) throws Exception{
         MasterNode masterNode = new MasterNode();
         //masterNode.MasterNodeRun();
